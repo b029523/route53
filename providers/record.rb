@@ -3,7 +3,7 @@ action :create do
   require "nokogiri"
 
   def name
-    @name ||= new_resource.name + "."
+    @name ||= new_resource.name
   end
 
   def value
@@ -18,11 +18,33 @@ action :create do
     @ttl ||= new_resource.ttl
   end
 
+  def overwrite
+    @overwrite ||= new_resource.overwrite
+  end
+
+  def pretty_print_record(record)
+    return "" if record.nil?
+    "#{record.name} IN #{record.type} #{record.value.first}"
+  end
+
+  def log(message,priority="info")
+    return if message.nil? || priority.nil?
+    Chef::Log.send(priority, "[Route53] #{message}")
+  end
+
+  def dns
+    begin
+      @dns ||= Fog::DNS.new({ :provider => "aws", :use_iam_profile => true })
+    rescue ArgumentError => e
+      log 'Unable to connect to AWS. Verify IAM Role is set', 'error'
+      return nil
+    end
+  end
+
   def zone
-    @zone ||= Fog::DNS.new({ :provider => "aws",
-                             :aws_access_key_id => new_resource.aws_access_key_id,
-                             :aws_secret_access_key => new_resource.aws_secret_access_key }
-                           ).zones.get( new_resource.zone_id )
+    @zone ||= dns.zones.detect{|z| z.domain == new_resource.domain}
+    log "Could not find zone #{new_resource.domain}", "error" if @zone.nil?
+    @zone
   end
 
   def create
@@ -32,20 +54,27 @@ action :create do
                             :type => type,
                             :ttl => ttl })
     rescue Excon::Errors::BadRequest => e
-      Chef::Log.info Nokogiri::XML( e.response.body ).xpath( "//xmlns:Message" ).text
+      log Nokogiri::XML( e.response.body ).xpath( "//xmlns:Message" ).text, "error"
     end
   end
 
-  record = zone.records.all.select do |record|
-    record.name == name
-  end.first
+  if dns.nil? ||zone.nil?
+    log 'DNS registration failed: Add to Route 53 Manually!', "error"
+  else
 
-  if record.nil?
-    create
-    Chef::Log.info "Record created: #{name}"
-  elsif value != record.value.first
-    record.destroy
-    create
-    Chef::Log.info "Record modified: #{name}"
+    record = zone.records.get name
+
+    log "Found existing Record : #{pretty_print_record(record)}" unless record.nil?
+
+    if record.nil?
+      create
+      log "Record created: #{name}"
+    elsif overwrite
+      record.destroy
+      create
+      log "Record modified: #{name}"
+    else
+      log "Record exists, not modifying: #{name}"
+    end
   end
 end
