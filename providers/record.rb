@@ -3,7 +3,7 @@ action :create do
   require "nokogiri"
 
   def name
-    @name ||= new_resource.name + "."
+    @name ||= new_resource.name
   end
 
   def value
@@ -18,11 +18,23 @@ action :create do
     @ttl ||= new_resource.ttl
   end
 
+  def overwrite
+    @overwrite ||= new_resource.overwrite
+  end
+
+  def dns
+    begin
+      @dns ||= Fog::DNS.new({ :provider => "aws", :use_iam_profile => true })
+    rescue ArgumentError => e
+      Chef::Log.error 'Unable to connect to AWS. Verify IAM Role is set'
+      return nil
+    end
+  end
+
   def zone
-    @zone ||= Fog::DNS.new({ :provider => "aws",
-                             :aws_access_key_id => new_resource.aws_access_key_id,
-                             :aws_secret_access_key => new_resource.aws_secret_access_key }
-                           ).zones.get( new_resource.zone_id )
+    @zone ||= dns.zones.detect{|z| z.domain == new_resource.domain}
+    Chef::Log.error "Could not find zone #{new_resource.domain}" if @zone.nil?
+    @zone
   end
 
   def create
@@ -32,20 +44,27 @@ action :create do
                             :type => type,
                             :ttl => ttl })
     rescue Excon::Errors::BadRequest => e
-      Chef::Log.info Nokogiri::XML( e.response.body ).xpath( "//xmlns:Message" ).text
+      Chef::Log.error Nokogiri::XML( e.response.body ).xpath( "//xmlns:Message" ).text
     end
   end
 
-  record = zone.records.all.select do |record|
-    record.name == name
-  end.first
+  if zone.nil? || dns.nil?
+    Chef::Log.error 'DNS registration failed: Add to Route 53 Manually!'
+  else
 
-  if record.nil?
-    create
-    Chef::Log.info "Record created: #{name}"
-  elsif value != record.value.first
-    record.destroy
-    create
-    Chef::Log.info "Record modified: #{name}"
+    record = zone.records.all.select do |record|
+      record.name == name
+    end.first
+
+    if record.nil?
+      create
+      Chef::Log.info "Record created: #{name}"
+    elsif overwrite
+      record.destroy
+      create
+      Chef::Log.info "Record modified: #{name}"
+    else
+      Chef::Log.info "Record exists, not modifying: #{name}"
+    end
   end
 end
