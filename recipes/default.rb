@@ -28,5 +28,6 @@ end
 xslt.run_action( :install )
 
 chef_gem "fog" do
+  version "1.12.1"
   action :install
 end
