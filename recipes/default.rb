@@ -16,6 +16,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+major_version = node['platform_version'].split('.').first.to_i
 
 if platform_family?('rhel') && major_version < 6
   include_recipe 'yum::epel'
