@@ -12,6 +12,10 @@ AWS API endpoints via IAM Roles
 Usage
 =====
 
+Actions:
+
+* `create` -create a new record
+
 ```ruby
 include_recipe "route53"
 
@@ -26,6 +30,23 @@ route53_record "create a record" do
   action :create
 end
 ```
+
+* `delete` -delete record
+
+```ruby
+include_recipe "route53"
+
+route53_record "delete record" do
+  name  "test.opscode.com."
+  value "16.8.4.2"
+  type  "A"
+
+  domain with_trailing_dot(node[:some_key])
+
+  action :delete
+end
+```
+delete only if match name,value and type
 
 License
 =======
