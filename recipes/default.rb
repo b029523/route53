@@ -17,15 +17,24 @@
 # limitations under the License.
 #
 
-xml = package "libxml2-dev" do
-  action :nothing
+if platform_family?('rhel') && major_version < 6
+  include_recipe 'yum::epel'
+  pkgs = ["libxml2-devel", "libxslt1-devel"]
+  node.set['python']['binary'] = "/usr/bin/python26"
+else
+  pkgs = value_for_platform_family(
+                  "debian" => ["libxml2-dev","libxslt1-dev"],
+                  "rhel" => ["libxml2-devel","libxslt1-devel"],
+                  "default" => ["libxml2-dev","libxslt1-dev"]
+                )
 end
-xml.run_action( :install )
 
-xslt = package "libxslt1-dev" do
-  action :nothing
+pkgs.each do |pkg|
+  package pkg do
+    action :install
+  end
 end
-xslt.run_action( :install )
+
 
 chef_gem "fog" do
   version "1.12.1"
