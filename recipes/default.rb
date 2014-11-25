@@ -20,11 +20,11 @@ major_version = node['platform_version'].split('.').first.to_i
 
 if platform_family?('rhel') && major_version < 6
   include_recipe 'yum::epel'
-  pkgs = ["libxml2-devel", "libxslt1-devel"]
+  pkgs = ["libxml2-devel", "libxslt-devel"]
 else
   pkgs = value_for_platform_family(
                   "debian" => ["libxml2-dev","libxslt1-dev"],
-                  "rhel" => ["libxml2-devel","libxslt1-devel"],
+                  "rhel" => ["libxml2-devel","libxslt-devel"],
                   "default" => ["libxml2-dev","libxslt1-dev"]
                 )
 end
