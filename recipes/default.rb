@@ -20,7 +20,6 @@
 if platform_family?('rhel') && major_version < 6
   include_recipe 'yum::epel'
   pkgs = ["libxml2-devel", "libxslt1-devel"]
-  node.set['python']['binary'] = "/usr/bin/python26"
 else
   pkgs = value_for_platform_family(
                   "debian" => ["libxml2-dev","libxslt1-dev"],
